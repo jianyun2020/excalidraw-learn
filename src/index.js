@@ -6,68 +6,27 @@ import "./styles.css";
 
 var elements = [];
 
-function newElement(type, x, y, width = 0, height = 0) {
+function isInsideAnElement(x, y) {
+  return (element) => {
+    const x1 = getElementAbsoluteX1(element)
+    const x2 = getElementAbsoluteX2(element)
+    const y1 = getElementAbsoluteY1(element)
+    const y2 = getElementAbsoluteY2(element)
+
+    return (x >= x1 && x <= x2) && (y >= y1 && y <= y2)
+  }
+}
+
+function newElement(type, x, y) {
   const element = {
     type: type,
     x: x,
     y: y,
-    width: width,
-    height: height,
+    width: 0,
+    height: 0,
     isSelected: false
   };
   return element;
-}
-
-function exportAsPNG({ background, visibleOnly, padding = 10 }) {
-  clearSelection();
-  drawScene();
-
-  let subCanvasX1 = Infinity;
-  let subCanvasX2 = 0;
-  let subCanvasY1 = Infinity;
-  let subCanvasY2 = 0;
-
-  elements.forEach(element => {
-    subCanvasX1 = Math.min(subCanvasX1, getElementAbsoluteX1(element));
-    subCanvasX2 = Math.max(subCanvasX2, getElementAbsoluteX2(element));
-    subCanvasY1 = Math.min(subCanvasY1, getElementAbsoluteY1(element));
-    subCanvasY2 = Math.max(subCanvasY2, getElementAbsoluteY2(element));
-  });
-
-  let targetCanvas = canvas;
-
-  if ( visibleOnly ) {
-    targetCanvas = document.createElement('canvas');
-    targetCanvas.style.display = 'none';
-    document.body.appendChild(targetCanvas);
-    targetCanvas.width = subCanvasX2 - subCanvasX1 + padding * 2;
-    targetCanvas.height = subCanvasY2 - subCanvasY1 + padding * 2;
-    const targetCanvas_ctx = targetCanvas.getContext('2d');
-
-    if ( background ) {
-      targetCanvas_ctx.fillStyle = "#FFF";
-      targetCanvas_ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-
-    targetCanvas_ctx.drawImage(
-      canvas,
-      subCanvasX1 - padding, // x
-      subCanvasY1 - padding, // y
-      subCanvasX2 - subCanvasX1 + padding * 2, // width
-      subCanvasY2 - subCanvasY1 + padding * 2, // height
-      0,
-      0,
-      targetCanvas.width,
-      targetCanvas.height
-    );
-  }
-
-  const link = document.createElement('a');
-  link.setAttribute('download', 'excalibur.png');
-  link.setAttribute('href', targetCanvas.toDataURL("image/png"));
-  link.click();
-  link.remove();
-  if ( targetCanvas !== canvas ) targetCanvas.remove();
 }
 
 function rotate(x1, y1, x2, y2, angle) {
@@ -202,7 +161,7 @@ function clearSelection() {
 class App extends React.Component {
   componentDidMount() {
     this.onKeyDown = event => {
-      if (event.key === "Backspace" && event.target.nodeName !== "INPUT") {
+      if (event.key === "Backspace") {
         for (var i = elements.length - 1; i >= 0; --i) {
           if (elements[i].isSelected) {
             elements.splice(i, 1);
@@ -240,10 +199,7 @@ class App extends React.Component {
     super();
     this.state = {
       draggingElement: null,
-      elementType: "selection",
-      exportBackground: false,
-      exportVisibleOnly: true,
-      exportPadding: 10
+      elementType: "selection"
     };
   }
 
@@ -265,40 +221,7 @@ class App extends React.Component {
       );
     };
 
-    return <>
-      <div className="exportWrapper">
-        <button onClick={() => {
-          exportAsPNG({
-            background: this.state.exportBackground,
-            visibleOnly: this.state.exportVisibleOnly,
-            padding: this.state.exportPadding
-          })
-        }}>Export to png</button>
-        <label>
-          <input type="checkbox"
-            checked={this.state.exportBackground}
-            onChange={e => {
-              this.setState({ exportBackground: e.target.checked })
-            }}
-          /> background
-        </label>
-        <label>
-          <input type="checkbox"
-            checked={this.state.exportVisibleOnly}
-            onChange={e => {
-              this.setState({ exportVisibleOnly: e.target.checked })
-            }}
-          />
-          visible area only
-        </label>
-        (padding:
-          <input type="number" value={this.state.exportPadding}
-            onChange={e => {
-              this.setState({ exportPadding: e.target.value });
-            }}
-            disabled={!this.state.exportVisibleOnly}/>
-        px)
-      </div>
+    return (
       <div>
         {/* Can't use the <ElementOption> form because ElementOption is re-defined
           on every render, which would blow up and re-create the entire DOM tree,
@@ -316,56 +239,55 @@ class App extends React.Component {
           onMouseDown={e => {
             const x = e.clientX - e.target.offsetLeft;
             const y = e.clientY - e.target.offsetTop;
-            const element = newElement(this.state.elementType, x, y);
-
             let isDraggingElements = false;
             const cursorStyle = document.documentElement.style.cursor;
             if (this.state.elementType === "selection") {
-              isDraggingElements = elements.some(el => {
-                if (el.isSelected) {
-                  const minX = Math.min(el.x, el.x + el.width);
-                  const maxX = Math.max(el.x, el.x + el.width);
-                  const minY = Math.min(el.y, el.y + el.height);
-                  const maxY = Math.max(el.y, el.y + el.height);
-                  return minX <= x && x <= maxX && minY <= y && y <= maxY;
-                }
-              });
+              const selectedElement = elements.find(isInsideAnElement(x, y)) 
+
+              if (selectedElement) {
+                this.setState({ draggingElement: selectedElement });
+              }
+
+              isDraggingElements = elements.some(element => element.isSelected && isInsideAnElement(x, y));
+
               if (isDraggingElements) {
                 document.documentElement.style.cursor = "move";
               }
-            }
-
-            if (this.state.elementType === "text") {
-              const text = prompt("What text do you want?");
-              if (text === null) {
-                return;
-              }
-              element.text = text;
-              element.font = "20px Virgil";
-              const font = context.font;
-              context.font = element.font;
-              element.measure = context.measureText(element.text);
-              context.font = font;
-              const height =
-                element.measure.actualBoundingBoxAscent +
-                element.measure.actualBoundingBoxDescent;
-              // Center the text
-              element.x -= element.measure.width / 2;
-              element.y -= element.measure.actualBoundingBoxAscent;
-              element.width = element.measure.width;
-              element.height = height;
-            }
-
-            generateDraw(element);
-            elements.push(element);
-            if (this.state.elementType === "text") {
-              this.setState({
-                draggingElement: null,
-                elementType: "selection"
-              });
-              element.isSelected = true;
             } else {
-              this.setState({ draggingElement: element });
+              const element = newElement(this.state.elementType, x, y);
+
+              if (this.state.elementType === "text") {
+                const text = prompt("What text do you want?");
+                if (text === null) {
+                  return;
+                }
+                element.text = text;
+                element.font = "20px Virgil";
+                const font = context.font;
+                context.font = element.font;
+                element.measure = context.measureText(element.text);
+                context.font = font;
+                const height =
+                  element.measure.actualBoundingBoxAscent +
+                  element.measure.actualBoundingBoxDescent;
+                // Center the text
+                element.x -= element.measure.width / 2;
+                element.y -= element.measure.actualBoundingBoxAscent;
+                element.width = element.measure.width;
+                element.height = height;
+              }
+
+              generateDraw(element);
+              elements.push(element);
+              if (this.state.elementType === "text") {
+                this.setState({
+                  draggingElement: null,
+                  elementType: "selection"
+                });
+                element.isSelected = true;
+              } else {
+                this.setState({ draggingElement: element });
+              }
             }
 
             let lastX = x;
@@ -418,11 +340,8 @@ class App extends React.Component {
               if (this.state.elementType === "selection") {
                 if (isDraggingElements) {
                   isDraggingElements = false;
-                } else {
-                  // Remove actual selection element
-                  setSelection(draggingElement);
-                }
-                elements.pop();
+                } 
+                setSelection(draggingElement);
               } else {
                 draggingElement.isSelected = true;
               }
@@ -440,7 +359,7 @@ class App extends React.Component {
           }}
         />
       </div>
-    </>;
+    );
   }
 }
 
