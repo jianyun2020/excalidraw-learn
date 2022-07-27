@@ -2,7 +2,7 @@
   "name": "excalidraw-learn",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
@@ -15,8 +15,16 @@
   "dependencies": {
     "react": "16.12.0",
     "react-dom": "16.12.0",
-    "react-scripts": "3.0.1",
+    "react-scripts": "3.3.0",
     "roughjs": "^3.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "16.9.17",
+    "@types/react-dom": "16.9.4",
+    "husky": "3.1.0",
+    "lint-staged": "9.5.0",
+    "prettier": "1.19.1",
+    "typescript": "3.7.4"
   },
   "browserslist": {
     "production": [
@@ -28,6 +36,23 @@
       "last 1 chrome version",
       "last 1 firefox version",
       "last 1 safari version"
+    ]
+  },
+  "eslintConfig": {
+    "extends": "react-app"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.{js,css,json,md,ts,tsx}": [
+      "prettier --write",
+      "git add"
+    ],
+    "*.{js,ts,tsx}": [
+      "eslint"
     ]
   }
 }
