@@ -7,14 +7,14 @@ import "./styles.css";
 var elements = [];
 
 function isInsideAnElement(x, y) {
-  return (element) => {
-    const x1 = getElementAbsoluteX1(element)
-    const x2 = getElementAbsoluteX2(element)
-    const y1 = getElementAbsoluteY1(element)
-    const y2 = getElementAbsoluteY2(element)
+  return element => {
+    const x1 = getElementAbsoluteX1(element);
+    const x2 = getElementAbsoluteX2(element);
+    const y1 = getElementAbsoluteY1(element);
+    const y2 = getElementAbsoluteY2(element);
 
-    return (x >= x1 && x <= x2) && (y >= y1 && y <= y2)
-  }
+    return x >= x1 && x <= x2 && y >= y1 && y <= y2;
+  };
 }
 
 function newElement(type, x, y, width = 0, height = 0) {
@@ -34,7 +34,7 @@ function exportAsPNG({
   exportVisibleOnly,
   exportPadding = 10
 }) {
-  if ( !elements.length ) return window.alert("Cannot export empty canvas.");
+  if (!elements.length) return window.alert("Cannot export empty canvas.");
 
   // deselect & rerender
 
@@ -300,192 +300,206 @@ class App extends React.Component {
       );
     };
 
-    return <>
-      <div className="exportWrapper">
-        <button onClick={() => {
-          exportAsPNG({
-            exportBackground: this.state.exportBackground,
-            exportVisibleOnly: this.state.exportVisibleOnly,
-            exportPadding: this.state.exportPadding
-          })
-        }}>Export to png</button>
-        <label>
-          <input type="checkbox"
-            checked={this.state.exportBackground}
-            onChange={e => {
-              this.setState({ exportBackground: e.target.checked })
+    return (
+      <>
+        <div className="exportWrapper">
+          <button
+            onClick={() => {
+              exportAsPNG({
+                exportBackground: this.state.exportBackground,
+                exportVisibleOnly: this.state.exportVisibleOnly,
+                exportPadding: this.state.exportPadding
+              });
             }}
-          /> background
-        </label>
-        <label>
-          <input type="checkbox"
-            checked={this.state.exportVisibleOnly}
-            onChange={e => {
-              this.setState({ exportVisibleOnly: e.target.checked })
-            }}
-          />
-          visible area only
-        </label>
-        (padding:
-          <input type="number" value={this.state.exportPadding}
+          >
+            Export to png
+          </button>
+          <label>
+            <input
+              type="checkbox"
+              checked={this.state.exportBackground}
+              onChange={e => {
+                this.setState({ exportBackground: e.target.checked });
+              }}
+            />{" "}
+            background
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={this.state.exportVisibleOnly}
+              onChange={e => {
+                this.setState({ exportVisibleOnly: e.target.checked });
+              }}
+            />
+            visible area only
+          </label>
+          (padding:
+          <input
+            type="number"
+            value={this.state.exportPadding}
             onChange={e => {
               this.setState({ exportPadding: e.target.value });
             }}
-            disabled={!this.state.exportVisibleOnly}/>
-        px)
-      </div>
-      <div>
-        {/* Can't use the <ElementOption> form because ElementOption is re-defined
+            disabled={!this.state.exportVisibleOnly}
+          />
+          px)
+        </div>
+        <div>
+          {/* Can't use the <ElementOption> form because ElementOption is re-defined
           on every render, which would blow up and re-create the entire DOM tree,
           which in addition to being inneficient, messes up with browser text
           selection */}
-        {ElementOption({ type: "rectangle", children: "Rectangle" })}
-        {ElementOption({ type: "ellipse", children: "Ellipse" })}
-        {ElementOption({ type: "arrow", children: "Arrow" })}
-        {ElementOption({ type: "text", children: "Text" })}
-        {ElementOption({ type: "selection", children: "Selection" })}
-        <canvas
-          id="canvas"
-          width={window.innerWidth}
-          height={window.innerHeight}
-          onMouseDown={e => {
-            const x = e.clientX - e.target.offsetLeft;
-            const y = e.clientY - e.target.offsetTop;
-            const element = newElement(this.state.elementType, x, y);
-            let isDraggingElements = false;
-            const cursorStyle = document.documentElement.style.cursor;
-            if (this.state.elementType === "selection") {
-              const selectedElement = elements.find(element => {
-                const isSelected = isInsideAnElement(x, y)(element)
-                if (isSelected) {
-                  element.isSelected = true
+          {ElementOption({ type: "rectangle", children: "Rectangle" })}
+          {ElementOption({ type: "ellipse", children: "Ellipse" })}
+          {ElementOption({ type: "arrow", children: "Arrow" })}
+          {ElementOption({ type: "text", children: "Text" })}
+          {ElementOption({ type: "selection", children: "Selection" })}
+          <canvas
+            id="canvas"
+            width={window.innerWidth}
+            height={window.innerHeight}
+            onMouseDown={e => {
+              const x = e.clientX - e.target.offsetLeft;
+              const y = e.clientY - e.target.offsetTop;
+              const element = newElement(this.state.elementType, x, y);
+              let isDraggingElements = false;
+              const cursorStyle = document.documentElement.style.cursor;
+              if (this.state.elementType === "selection") {
+                const selectedElement = elements.find(element => {
+                  const isSelected = isInsideAnElement(x, y)(element);
+                  if (isSelected) {
+                    element.isSelected = true;
+                  }
+                  return isSelected;
+                });
+
+                if (selectedElement) {
+                  this.setState({ draggingElement: selectedElement });
+                } else {
+                  clearSelection();
                 }
-                return isSelected
-              })
 
-              if (selectedElement) {
-                this.setState({ draggingElement: selectedElement });
+                isDraggingElements = elements.some(
+                  element => element.isSelected
+                );
+
+                if (isDraggingElements) {
+                  document.documentElement.style.cursor = "move";
+                }
+              }
+
+              if (this.state.elementType === "text") {
+                const text = prompt("What text do you want?");
+                if (text === null) {
+                  return;
+                }
+                element.text = text;
+                element.font = "20px Virgil";
+                const font = context.font;
+                context.font = element.font;
+                element.measure = context.measureText(element.text);
+                context.font = font;
+                const height =
+                  element.measure.actualBoundingBoxAscent +
+                  element.measure.actualBoundingBoxDescent;
+                // Center the text
+                element.x -= element.measure.width / 2;
+                element.y -= element.measure.actualBoundingBoxAscent;
+                element.width = element.measure.width;
+                element.height = height;
+              }
+
+              generateDraw(element);
+              elements.push(element);
+              if (this.state.elementType === "text") {
+                this.setState({
+                  draggingElement: null,
+                  elementType: "selection"
+                });
+                element.isSelected = true;
               } else {
-                clearSelection()
+                this.setState({ draggingElement: element });
               }
 
-              isDraggingElements = elements.some(element => element.isSelected);
+              let lastX = x;
+              let lastY = y;
 
-              if (isDraggingElements) {
-                document.documentElement.style.cursor = "move";
-              }
-            }
+              const onMouseMove = e => {
+                if (isDraggingElements) {
+                  const selectedElements = elements.filter(el => el.isSelected);
+                  if (selectedElements.length) {
+                    const x = e.clientX - e.target.offsetLeft;
+                    const y = e.clientY - e.target.offsetTop;
+                    selectedElements.forEach(element => {
+                      element.x += x - lastX;
+                      element.y += y - lastY;
+                    });
+                    lastX = x;
+                    lastY = y;
+                    drawScene();
+                    return;
+                  }
+                }
 
-            if (this.state.elementType === "text") {
-              const text = prompt("What text do you want?");
-              if (text === null) {
-                return;
-              }
-              element.text = text;
-              element.font = "20px Virgil";
-              const font = context.font;
-              context.font = element.font;
-              element.measure = context.measureText(element.text);
-              context.font = font;
-              const height =
-                element.measure.actualBoundingBoxAscent +
-                element.measure.actualBoundingBoxDescent;
-              // Center the text
-              element.x -= element.measure.width / 2;
-              element.y -= element.measure.actualBoundingBoxAscent;
-              element.width = element.measure.width;
-              element.height = height;
-            }
+                // It is very important to read this.state within each move event,
+                // otherwise we would read a stale one!
+                const draggingElement = this.state.draggingElement;
+                if (!draggingElement) return;
+                let width = e.clientX - e.target.offsetLeft - draggingElement.x;
+                let height = e.clientY - e.target.offsetTop - draggingElement.y;
+                draggingElement.width = width;
+                // Make a perfect square or circle when shift is enabled
+                draggingElement.height = e.shiftKey ? width : height;
 
-            generateDraw(element);
-            elements.push(element);
-            if (this.state.elementType === "text") {
-              this.setState({
-                draggingElement: null,
-                elementType: "selection"
-              });
-              element.isSelected = true;
-            } else {
-              this.setState({ draggingElement: element });
-            }
+                generateDraw(draggingElement);
 
-            let lastX = x;
-            let lastY = y;
+                if (this.state.elementType === "selection") {
+                  setSelection(draggingElement);
+                }
+                drawScene();
+              };
 
-            const onMouseMove = e => {
-              if (isDraggingElements) {
-                const selectedElements = elements.filter(el => el.isSelected);
-                if (selectedElements.length) {
-                  const x = e.clientX - e.target.offsetLeft;
-                  const y = e.clientY - e.target.offsetTop;
-                  selectedElements.forEach(element => {
-                    element.x += x - lastX;
-                    element.y += y - lastY;
-                  });
-                  lastX = x;
-                  lastY = y;
+              const onMouseUp = e => {
+                const { draggingElement, elementType } = this.state;
+
+                window.removeEventListener("mousemove", onMouseMove);
+                window.removeEventListener("mouseup", onMouseUp);
+
+                document.documentElement.style.cursor = cursorStyle;
+
+                // if no element is clicked, clear the selection and redraw
+                if (draggingElement === null) {
+                  clearSelection();
                   drawScene();
                   return;
                 }
-              }
 
-              // It is very important to read this.state within each move event,
-              // otherwise we would read a stale one!
-              const draggingElement = this.state.draggingElement;
-              if (!draggingElement) return;
-              let width = e.clientX - e.target.offsetLeft - draggingElement.x;
-              let height = e.clientY - e.target.offsetTop - draggingElement.y;
-              draggingElement.width = width;
-              // Make a perfect square or circle when shift is enabled
-              draggingElement.height = e.shiftKey ? width : height;
-
-              generateDraw(draggingElement);
-
-              if (this.state.elementType === "selection") {
-                setSelection(draggingElement);
-              }
-              drawScene();
-            };
-
-            const onMouseUp = e => {
-              const { draggingElement, elementType } = this.state
-
-              window.removeEventListener("mousemove", onMouseMove);
-              window.removeEventListener("mouseup", onMouseUp);
-
-              document.documentElement.style.cursor = cursorStyle;
-
-              // if no element is clicked, clear the selection and redraw
-              if (draggingElement === null ) {
-                clearSelection()
-                drawScene();
-                return
-              }
-
-              if (elementType === "selection") {
-                if (isDraggingElements) {
-                  isDraggingElements = false;
+                if (elementType === "selection") {
+                  if (isDraggingElements) {
+                    isDraggingElements = false;
+                  }
+                  elements.pop();
+                } else {
+                  draggingElement.isSelected = true;
                 }
-                elements.pop()
-              } else {
-                draggingElement.isSelected = true;
-              }
 
-              this.setState({
-                draggingElement: null,
-                elementType: "selection"
-              });
+                this.setState({
+                  draggingElement: null,
+                  elementType: "selection"
+                });
+                drawScene();
+              };
+
+              window.addEventListener("mousemove", onMouseMove);
+              window.addEventListener("mouseup", onMouseUp);
+
               drawScene();
-            };
-
-            window.addEventListener("mousemove", onMouseMove);
-            window.addEventListener("mouseup", onMouseUp);
-
-            drawScene();
-          }}
-        />
-      </div>
-    </>;
+            }}
+          />
+        </div>
+      </>
+    );
   }
 }
 
