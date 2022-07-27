@@ -17,16 +17,68 @@ function isInsideAnElement(x, y) {
   }
 }
 
-function newElement(type, x, y) {
+function newElement(type, x, y, width = 0, height = 0) {
   const element = {
     type: type,
     x: x,
     y: y,
-    width: 0,
-    height: 0,
+    width: width,
+    height: height,
     isSelected: false
   };
   return element;
+}
+
+function exportAsPNG({ background, visibleOnly, padding = 10 }) {
+  clearSelection();
+  drawScene();
+
+  let subCanvasX1 = Infinity;
+  let subCanvasX2 = 0;
+  let subCanvasY1 = Infinity;
+  let subCanvasY2 = 0;
+
+  elements.forEach(element => {
+    subCanvasX1 = Math.min(subCanvasX1, getElementAbsoluteX1(element));
+    subCanvasX2 = Math.max(subCanvasX2, getElementAbsoluteX2(element));
+    subCanvasY1 = Math.min(subCanvasY1, getElementAbsoluteY1(element));
+    subCanvasY2 = Math.max(subCanvasY2, getElementAbsoluteY2(element));
+  });
+
+  let targetCanvas = canvas;
+
+  if ( visibleOnly ) {
+    targetCanvas = document.createElement('canvas');
+    targetCanvas.style.display = 'none';
+    document.body.appendChild(targetCanvas);
+    targetCanvas.width = subCanvasX2 - subCanvasX1 + padding * 2;
+    targetCanvas.height = subCanvasY2 - subCanvasY1 + padding * 2;
+    const targetCanvas_ctx = targetCanvas.getContext('2d');
+
+    if ( background ) {
+      targetCanvas_ctx.fillStyle = "#FFF";
+      targetCanvas_ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    targetCanvas_ctx.drawImage(
+      canvas,
+      subCanvasX1 - padding, // x
+      subCanvasY1 - padding, // y
+      subCanvasX2 - subCanvasX1 + padding * 2, // width
+      subCanvasY2 - subCanvasY1 + padding * 2, // height
+      0,
+      0,
+      targetCanvas.width,
+      targetCanvas.height
+    );
+  }
+
+  const link = document.createElement('a');
+  link.setAttribute('download', 'excalibur.png');
+  link.setAttribute('href', targetCanvas.toDataURL("image/png"));
+  link.click();
+  link.remove();
+  if ( targetCanvas !== canvas ) targetCanvas.remove();
 }
 
 function rotate(x1, y1, x2, y2, angle) {
@@ -161,7 +213,7 @@ function clearSelection() {
 class App extends React.Component {
   componentDidMount() {
     this.onKeyDown = event => {
-      if (event.key === "Backspace") {
+      if (event.key === "Backspace" && event.target.nodeName !== "INPUT") {
         for (var i = elements.length - 1; i >= 0; --i) {
           if (elements[i].isSelected) {
             elements.splice(i, 1);
@@ -199,7 +251,10 @@ class App extends React.Component {
     super();
     this.state = {
       draggingElement: null,
-      elementType: "selection"
+      elementType: "selection",
+      exportBackground: false,
+      exportVisibleOnly: true,
+      exportPadding: 10
     };
   }
 
@@ -221,7 +276,40 @@ class App extends React.Component {
       );
     };
 
-    return (
+    return <>
+      <div className="exportWrapper">
+        <button onClick={() => {
+          exportAsPNG({
+            background: this.state.exportBackground,
+            visibleOnly: this.state.exportVisibleOnly,
+            padding: this.state.exportPadding
+          })
+        }}>Export to png</button>
+        <label>
+          <input type="checkbox"
+            checked={this.state.exportBackground}
+            onChange={e => {
+              this.setState({ exportBackground: e.target.checked })
+            }}
+          /> background
+        </label>
+        <label>
+          <input type="checkbox"
+            checked={this.state.exportVisibleOnly}
+            onChange={e => {
+              this.setState({ exportVisibleOnly: e.target.checked })
+            }}
+          />
+          visible area only
+        </label>
+        (padding:
+          <input type="number" value={this.state.exportPadding}
+            onChange={e => {
+              this.setState({ exportPadding: e.target.value });
+            }}
+            disabled={!this.state.exportVisibleOnly}/>
+        px)
+      </div>
       <div>
         {/* Can't use the <ElementOption> form because ElementOption is re-defined
           on every render, which would blow up and re-create the entire DOM tree,
@@ -239,6 +327,7 @@ class App extends React.Component {
           onMouseDown={e => {
             const x = e.clientX - e.target.offsetLeft;
             const y = e.clientY - e.target.offsetTop;
+            const element = newElement(this.state.elementType, x, y);
             let isDraggingElements = false;
             const cursorStyle = document.documentElement.style.cursor;
             if (this.state.elementType === "selection") {
@@ -253,41 +342,39 @@ class App extends React.Component {
               if (isDraggingElements) {
                 document.documentElement.style.cursor = "move";
               }
+            } 
+
+            if (this.state.elementType === "text") {
+              const text = prompt("What text do you want?");
+              if (text === null) {
+                return;
+              }
+              element.text = text;
+              element.font = "20px Virgil";
+              const font = context.font;
+              context.font = element.font;
+              element.measure = context.measureText(element.text);
+              context.font = font;
+              const height =
+                element.measure.actualBoundingBoxAscent +
+                element.measure.actualBoundingBoxDescent;
+              // Center the text
+              element.x -= element.measure.width / 2;
+              element.y -= element.measure.actualBoundingBoxAscent;
+              element.width = element.measure.width;
+              element.height = height;
+            }
+
+            generateDraw(element);
+            elements.push(element);
+            if (this.state.elementType === "text") {
+              this.setState({
+                draggingElement: null,
+                elementType: "selection"
+              });
+              element.isSelected = true;
             } else {
-              const element = newElement(this.state.elementType, x, y);
-
-              if (this.state.elementType === "text") {
-                const text = prompt("What text do you want?");
-                if (text === null) {
-                  return;
-                }
-                element.text = text;
-                element.font = "20px Virgil";
-                const font = context.font;
-                context.font = element.font;
-                element.measure = context.measureText(element.text);
-                context.font = font;
-                const height =
-                  element.measure.actualBoundingBoxAscent +
-                  element.measure.actualBoundingBoxDescent;
-                // Center the text
-                element.x -= element.measure.width / 2;
-                element.y -= element.measure.actualBoundingBoxAscent;
-                element.width = element.measure.width;
-                element.height = height;
-              }
-
-              generateDraw(element);
-              elements.push(element);
-              if (this.state.elementType === "text") {
-                this.setState({
-                  draggingElement: null,
-                  elementType: "selection"
-                });
-                element.isSelected = true;
-              } else {
-                this.setState({ draggingElement: element });
-              }
+              this.setState({ draggingElement: element });
             }
 
             let lastX = x;
@@ -329,22 +416,30 @@ class App extends React.Component {
             };
 
             const onMouseUp = e => {
+              const { draggingElement, elementType } = this.state
+
               window.removeEventListener("mousemove", onMouseMove);
               window.removeEventListener("mouseup", onMouseUp);
+
               document.documentElement.style.cursor = cursorStyle;
 
-              const draggingElement = this.state.draggingElement;
+              // if no element is clicked, clear the selection and redraw
               if (draggingElement === null) {
-                return;
+                clearSelection()
+                drawScene();
+                return
               }
-              if (this.state.elementType === "selection") {
+
+              if (elementType === "selection") {
                 if (isDraggingElements) {
                   isDraggingElements = false;
                 } 
+                elements.pop()
                 setSelection(draggingElement);
               } else {
                 draggingElement.isSelected = true;
               }
+
               this.setState({
                 draggingElement: null,
                 elementType: "selection"
@@ -359,7 +454,7 @@ class App extends React.Component {
           }}
         />
       </div>
-    );
+    </>;
   }
 }
 
