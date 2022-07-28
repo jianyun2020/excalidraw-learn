@@ -11,7 +11,10 @@ import {
   faFont
 } from "@fortawesome/free-solid-svg-icons";
 
+import { moveOneLeft, moveAllLeft } from "./zindex";
+
 import "./styles.css";
+import { IconProp } from "@fortawesome/fontawesome-svg-core";
 
 type ExcalidrawElement = ReturnType<typeof newElement>;
 type ExcalidrawTextElement = ExcalidrawElement & {
@@ -647,6 +650,16 @@ function isArrowKey(keyCode: string) {
   );
 }
 
+function getSelectedIndices() {
+  const selectedIndices: number[] = [];
+  elements.forEach((element, index) => {
+    if (element.isSelected) {
+      selectedIndices.push(index);
+    }
+  });
+  return selectedIndices;
+}
+
 const ELEMENT_SHIFT_TRANSLATE_AMOUNT = 5;
 const ELEMENT_TRANSLATE_AMOUNT = 1;
 
@@ -710,7 +723,26 @@ class App extends React.Component<{}, AppState> {
       });
       this.forceUpdate();
       event.preventDefault();
-    } else if (event.key === "a" && event.metaKey) {
+
+      // Send backwards: Cmd-Shift-Alt-B
+    } else if (
+      event.metaKey &&
+      event.shiftKey &&
+      event.altKey &&
+      event.code === "KeyB"
+    ) {
+      moveOneLeft(elements, getSelectedIndices());
+      this.forceUpdate();
+      event.preventDefault();
+
+      // Send to back: Cmd-Shift-B
+    } else if (event.metaKey && event.shiftKey && event.code === "KeyB") {
+      moveAllLeft(elements, getSelectedIndices());
+      this.forceUpdate();
+      event.preventDefault();
+
+      // Select all: Cmd-A
+    } else if (event.metaKey && event.code === "KeyA") {
       elements.forEach(element => {
         element.isSelected = true;
       });
@@ -780,7 +812,7 @@ class App extends React.Component<{}, AppState> {
                   }}
                 />
                 <div className="toolIcon">
-                  <FontAwesomeIcon icon={icon} />
+                  <FontAwesomeIcon icon={icon as IconProp} />
                 </div>
               </label>
             ))}
