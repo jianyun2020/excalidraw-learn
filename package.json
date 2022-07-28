@@ -1,5 +1,6 @@
 {
   "name": "excalidraw-learn",
+  "homepage": "https://draw.jianyun.site",
   "version": "1.0.0",
   "description": "",
   "scripts": {
@@ -7,13 +8,13 @@
     "build": "react-scripts build",
     "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject",
-    "lint": "eslint src"
+    "deploy": "react-scripts build && gh-pages -d build"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "lodash": "^4.17.21",
+    "lodash": "4.17.15",
     "react": "16.12.0",
     "react-dom": "16.12.0",
     "react-scripts": "3.3.0",
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@types/react": "16.9.17",
     "@types/react-dom": "16.9.4",
+    "gh-pages": "2.1.1",
     "husky": "3.1.0",
     "lint-staged": "9.5.0",
     "prettier": "1.19.1",
